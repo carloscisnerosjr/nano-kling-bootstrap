@@ -14,7 +14,20 @@ export default function Home() {
   const [imagePrompt, setImagePrompt] = useState("");
   const [videoPrompt, setVideoPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    output?: {
+      video?: {
+        url: string;
+        content_type: string;
+        file_name: string;
+        file_size: number;
+      };
+    };
+    video_url?: string;
+    video?: {
+      url: string;
+    };
+  } | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +122,6 @@ export default function Home() {
         addLog(`📦 Event ${eventCount}: ${event.type || 'unknown type'}`);
         
         if (event.type === 'progress') {
-          const progressData = event.data?.progress || 'Unknown progress';
           addLog(`⏳ Progress: ${JSON.stringify(event.data)}`);
         } else if (event.type === 'error') {
           addLog(`❌ Error event: ${JSON.stringify(event)}`);
@@ -131,22 +143,25 @@ export default function Home() {
       setCurrentStep("Complete!");
       addLog("✨ Video generation completed successfully!");
 
-    } catch (error: any) {
-      const errorMessage = error?.message || error?.toString() || "Unknown error";
+    } catch (error: unknown) {
+      const isError = error instanceof Error;
+      const hasStatus = error && typeof error === 'object' && 'status' in error;
+      
+      const errorMessage = isError ? error.message : (error ? String(error) : "Unknown error");
       const errorDetails = {
-        name: error?.name,
-        message: error?.message,
-        stack: error?.stack,
-        cause: error?.cause,
-        code: error?.code,
-        status: error?.status
+        name: isError ? error.name : 'Unknown',
+        message: errorMessage,
+        stack: isError ? error.stack : undefined,
+        cause: isError ? error.cause : undefined,
+        code: (error && typeof error === 'object' && 'code' in error) ? error.code : undefined,
+        status: hasStatus ? (error as { status: unknown }).status : undefined
       };
       
       addLog(`💥 Error occurred: ${errorMessage}`);
       addLog(`🔍 Error details: ${JSON.stringify(errorDetails, null, 2)}`);
       
       // Specific handling for authentication errors
-      if (error?.status === 401) {
+      if (hasStatus && (error as { status: unknown }).status === 401) {
         const authErrorMsg = `🚫 Authentication failed (401 Unauthorized)\n\nPossible issues:\n1. FAL_KEY is incorrect or expired\n2. FAL_KEY format is wrong\n3. Environment variable not properly loaded\n\nCurrent FAL_KEY length: ${process.env.NEXT_PUBLIC_FAL_KEY?.length || 0}\n\nPlease check your .env.local file and ensure it contains:\nNEXT_PUBLIC_FAL_KEY=your_actual_fal_key`;
         setError(authErrorMsg);
         addLog("🔑 Authentication error detected");
